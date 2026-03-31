@@ -1295,9 +1295,8 @@ banner(){
   echo -e "系统加速状态：$(bbr_state)"
   echo -e "Sing-Box 启动状态：$(sb_service_state)"
   hr
-  echo -e "  ${C_BLUE}1)${C_RESET} 安装/部署（20 节点）"
+  echo -e "  ${C_RED}${C_BOLD}1)${C_RESET}${C_RED}${C_BOLD} 安装/部署（20 节点）${C_RESET}"
   echo -e "  ${C_GREEN}2)${C_RESET} 查看分享链接（IPv4）"
-  echo -e "  ${C_GREEN}6)${C_RESET} 查看分享链接（IPv6）"
   echo -e "  ${C_GREEN}3)${C_RESET} 重启服务"
   echo -e "  ${C_GREEN}4)${C_RESET} 一键更换所有端口"
   echo -e "  ${C_GREEN}5)${C_RESET} 一键开启 BBR"
@@ -1305,11 +1304,12 @@ banner(){
   echo -e "  ${C_RED}8)${C_RESET} 卸载"
   hr
   echo -e "  ${C_CYAN}9)${C_RESET}  节点测速"
-  echo -e "  ${C_CYAN}10)${C_RESET} 订阅链接生成"
+  echo -e "  ${C_GREEN}${C_BOLD}10)${C_RESET}${C_GREEN} v2rayN 订阅链接生成"
   echo -e "  ${C_CYAN}11)${C_RESET} 配置备份"
   echo -e "  ${C_CYAN}12)${C_RESET} 配置恢复"
   echo -e "  ${C_CYAN}13)${C_RESET} 实时日志"
   echo -e "  ${C_MAGENTA}14)${C_RESET} 设置节点图标"
+  echo -e "  ${C_GREEN}${C_BOLD}15)${C_RESET}${C_GREEN} Clash 订阅链接生成"
   hr
   echo -e "  ${C_RED}0)${C_RESET} 退出"
   hr
@@ -1404,13 +1404,29 @@ speed_test(){
   read -rp "回车返回..." _ || true
 }
 
+# ===== 订阅 Token 管理 =====
+SUB_TOKEN_FILE="/var/lib/sing-box-plus/sub_token.env"
+
+load_sub_token(){
+  if [[ -f "$SUB_TOKEN_FILE" ]]; then
+    source "$SUB_TOKEN_FILE"
+  fi
+  if [[ -z "${SUB_TOKEN:-}" ]]; then
+    SUB_TOKEN=$(head -c 100 /dev/urandom | tr -dc 'a-zA-Z0-9' | cut -c1-8)
+    mkdir -p /var/lib/sing-box-plus
+    echo "SUB_TOKEN=${SUB_TOKEN}" > "$SUB_TOKEN_FILE"
+  fi
+}
+
 # ===== 订阅链接生成 =====
 gen_subscription(){
   ensure_installed_or_hint || return 0
   load_env; load_creds; load_ports; load_icon
+  load_sub_token
   local ip=$(get_ip4)
   local host=$(fmt_host_for_uri "$ip")
   local I="${NODE_ICON:-}"
+  local sub_dir="/var/www/html/sub/${SUB_TOKEN}"
   
   echo -e "\n${C_CYAN}=== 生成订阅链接 ===${C_RESET}\n"
   
@@ -1500,12 +1516,48 @@ JSON
     fi
   fi
   
+  # 确保 web 服务可用（自动检测并安装）
+  ensure_web_server() {
+    # 检查 80 端口是否已有服务监听
+    if ss -tlnp | grep -q ':80 '; then
+      return 0
+    fi
+    info "检测到 80 端口无 Web 服务，正在自动安装 nginx..."
+    local pkg=""
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get install -y nginx >/dev/null 2>&1
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y nginx >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y nginx >/dev/null 2>&1
+    elif command -v apk >/dev/null 2>&1; then
+      apk add --no-cache nginx >/dev/null 2>&1
+    elif command -v pacman >/dev/null 2>&1; then
+      pacman -S --noconfirm nginx >/dev/null 2>&1
+    elif command -v zypper >/dev/null 2>&1; then
+      zypper --non-interactive install nginx >/dev/null 2>&1
+    fi
+    # 启动 nginx
+    systemctl enable --now nginx >/dev/null 2>&1
+    # 防火墙放行 80 端口
+    if command -v ufw >/dev/null 2>&1; then
+      ufw allow 80/tcp >/dev/null 2>&1
+    elif command -v firewall-cmd >/dev/null 2>&1; then
+      firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1
+      firewall-cmd --reload >/dev/null 2>&1
+    fi
+    info "nginx 已安装并启动"
+  }
+
+  # 调用检查
+  ensure_web_server
+
   # 生成 base64 订阅
   local sub_b64=$(printf "%b" "$links" | base64 -w 0 2>/dev/null || printf "%b" "$links" | base64)
-  local sub_web="/var/www/html/sub/singbox.txt"
+  local sub_web="${sub_dir}/singbox.txt"
   
   # 确保目录存在
-  mkdir -p /var/www/html/sub
+  mkdir -p "$sub_dir"
   
   # 同时保存到 web 目录和本地
   echo "$sub_b64" > "$sub_web"
@@ -1513,11 +1565,374 @@ JSON
   
   echo -e "${C_GREEN}订阅链接已生成！${C_RESET}\n"
   echo -e "${C_BOLD}v2rayN 订阅地址:${C_RESET}"
-  echo -e "${C_YELLOW}  http://${local_ip}/sub/singbox.txt${C_RESET}\n"
+  echo -e "${C_YELLOW}  http://${local_ip}/sub/${SUB_TOKEN}/singbox.txt${C_RESET}\n"
   echo -e "${C_BOLD}节点数量:${C_RESET} $(echo -e "$links" | wc -l)\n"
   echo -e "${C_YELLOW}提示: 在 v2rayN 中添加订阅 → 填入上面的 URL → 点击更新${C_RESET}"
   
   read -rp "\n回车返回..." _ || true
+}
+
+# ===== Clash 订阅链接生成 =====
+gen_clash_subscription(){
+  ensure_installed_or_hint || return 0
+  load_env; load_creds; load_ports; load_icon
+  load_sub_token
+
+  local ip=$(get_ip4)
+  local host=$(fmt_host_for_uri "$ip")
+  local I="${NODE_ICON:-}"
+  local sub_dir="/var/www/html/sub/${SUB_TOKEN}"
+
+  echo -e "\n${C_CYAN}=== 生成 Clash 订阅链接 ===${C_RESET}\n"
+
+  # 确保 web 服务可用
+  if ! ss -tlnp | grep -q ':80 '; then
+    info "检测到 80 端口无 Web 服务，正在自动安装 nginx..."
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get install -y nginx >/dev/null 2>&1
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y nginx >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y nginx >/dev/null 2>&1
+    elif command -v apk >/dev/null 2>&1; then
+      apk add --no-cache nginx >/dev/null 2>&1
+    elif command -v pacman >/dev/null 2>&1; then
+      pacman -S --noconfirm nginx >/dev/null 2>&1
+    elif command -v zypper >/dev/null 2>&1; then
+      zypper --non-interactive install nginx >/dev/null 2>&1
+    fi
+    systemctl enable --now nginx >/dev/null 2>&1
+    if command -v ufw >/dev/null 2>&1; then
+      ufw allow 80/tcp >/dev/null 2>&1
+    elif command -v firewall-cmd >/dev/null 2>&1; then
+      firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1
+      firewall-cmd --reload >/dev/null 2>&1
+    fi
+    info "nginx 已安装并启动"
+  fi
+
+  # 收集 proxies
+  local proxies=""
+  proxy_add(){
+    local entry="$1"
+    if [[ -n "$proxies" ]]; then
+      proxies="${proxies}"$'\n'"  - ${entry}"
+    else
+      proxies="  - ${entry}"
+    fi
+  }
+
+  # 直连节点
+  if [[ "${ENABLE_VLESS_REALITY:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}vless-reality\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_VLESSR}
+    uuid: ${UUID}
+    network: tcp
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    flow: xtls-rprx-vision
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+  fi
+  if [[ "${ENABLE_VLESS_GRPCR:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}vless-grpc-reality\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_VLESS_GRPCR}
+    uuid: ${UUID}
+    network: grpc
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    grpc-opts:
+      grpc-service-name: ${GRPC_SERVICE}
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+  fi
+  if [[ "${ENABLE_TROJAN_REALITY:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}trojan-reality\"
+    type: trojan
+    server: ${ip}
+    port: ${PORT_TROJANR}
+    password: ${UUID}
+    udp: true
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+  fi
+  if [[ "${ENABLE_HYSTERIA2:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}hysteria2\"
+    type: hysteria2
+    server: ${ip}
+    port: ${PORT_HY2}
+    password: ${HY2_PWD}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}"
+  fi
+  if [[ "${ENABLE_VMESS_WS:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}vmess-ws\"
+    type: vmess
+    server: ${ip}
+    port: ${PORT_VMESS_WS}
+    uuid: ${UUID}
+    alterId: 0
+    cipher: auto
+    network: ws
+    ws-opts:
+      path: ${VMESS_WS_PATH}"
+  fi
+  if [[ "${ENABLE_HY2_OBFS:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}hysteria2-obfs\"
+    type: hysteria2
+    server: ${ip}
+    port: ${PORT_HY2_OBFS}
+    password: ${HY2_PWD2}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}
+    alpn:
+      - h3
+    obfs: salamander
+    obfs-password: ${HY2_OBFS_PWD}"
+  fi
+  if [[ "${ENABLE_SS2022:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}ss2022\"
+    type: ss
+    server: ${ip}
+    port: ${PORT_SS2022}
+    cipher: 2022-blake3-aes-256-gcm
+    password: \"${SS2022_KEY}\""
+  fi
+  if [[ "${ENABLE_SS:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}ss\"
+    type: ss
+    server: ${ip}
+    port: ${PORT_SS}
+    cipher: aes-256-gcm
+    password: ${SS_PWD}"
+  fi
+  if [[ "${ENABLE_TUIC:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}tuic-v5\"
+    type: tuic
+    server: ${ip}
+    port: ${PORT_TUIC}
+    uuid: ${TUIC_UUID}
+    password: ${TUIC_PWD}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}
+    alpn:
+      - h3
+    congestion-controller: bbr"
+  fi
+  if [[ "${ENABLE_ANYTLS:-true}" == "true" ]]; then
+    proxy_add "name: \"${I}anytls\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_ANYTLS}
+    uuid: ${UUID}
+    network: tcp
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    skip-cert-verify: true
+    password: ${ANYTLS_PWD}"
+  fi
+
+  # WARP 节点
+  if [[ "${ENABLE_WARP:-true}" == "true" ]]; then
+    if [[ "${ENABLE_VLESS_REALITY:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}vless-reality-warp\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_VLESSR_W}
+    uuid: ${UUID}
+    network: tcp
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    flow: xtls-rprx-vision
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+    fi
+    if [[ "${ENABLE_VLESS_GRPCR:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}vless-grpc-reality-warp\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_VLESS_GRPCR_W}
+    uuid: ${UUID}
+    network: grpc
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    grpc-opts:
+      grpc-service-name: ${GRPC_SERVICE}
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+    fi
+    if [[ "${ENABLE_TROJAN_REALITY:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}trojan-reality-warp\"
+    type: trojan
+    server: ${ip}
+    port: ${PORT_TROJANR_W}
+    password: ${UUID}
+    udp: true
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: ${REALITY_PUB}
+      short-id: ${REALITY_SID}"
+    fi
+    if [[ "${ENABLE_HYSTERIA2:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}hysteria2-warp\"
+    type: hysteria2
+    server: ${ip}
+    port: ${PORT_HY2_W}
+    password: ${HY2_PWD}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}"
+    fi
+    if [[ "${ENABLE_VMESS_WS:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}vmess-ws-warp\"
+    type: vmess
+    server: ${ip}
+    port: ${PORT_VMESS_WS_W}
+    uuid: ${UUID}
+    alterId: 0
+    cipher: auto
+    network: ws
+    ws-opts:
+      path: ${VMESS_WS_PATH}"
+    fi
+    if [[ "${ENABLE_HY2_OBFS:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}hysteria2-obfs-warp\"
+    type: hysteria2
+    server: ${ip}
+    port: ${PORT_HY2_OBFS_W}
+    password: ${HY2_PWD2}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}
+    alpn:
+      - h3
+    obfs: salamander
+    obfs-password: ${HY2_OBFS_PWD}"
+    fi
+    if [[ "${ENABLE_SS2022:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}ss2022-warp\"
+    type: ss
+    server: ${ip}
+    port: ${PORT_SS2022_W}
+    cipher: 2022-blake3-aes-256-gcm
+    password: \"${SS2022_KEY}\""
+    fi
+    if [[ "${ENABLE_SS:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}ss-warp\"
+    type: ss
+    server: ${ip}
+    port: ${PORT_SS_W}
+    cipher: aes-256-gcm
+    password: ${SS_PWD}"
+    fi
+    if [[ "${ENABLE_TUIC:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}tuic-v5-warp\"
+    type: tuic
+    server: ${ip}
+    port: ${PORT_TUIC_W}
+    uuid: ${TUIC_UUID}
+    password: ${TUIC_PWD}
+    skip-cert-verify: true
+    sni: ${REALITY_SERVER}
+    alpn:
+      - h3
+    congestion-controller: bbr"
+    fi
+    if [[ "${ENABLE_ANYTLS:-true}" == "true" ]]; then
+      proxy_add "name: \"${I}anytls-warp\"
+    type: vless
+    server: ${ip}
+    port: ${PORT_ANYTLS_W}
+    uuid: ${UUID}
+    network: tcp
+    tls: true
+    servername: ${REALITY_SERVER}
+    client-fingerprint: chrome
+    skip-cert-verify: true
+    password: ${ANYTLS_PWD}"
+    fi
+  fi
+
+  # 统计节点数
+  local node_count=$(echo -e "$proxies" | grep -c "^  - name:")
+
+  # 组装完整 Clash 配置
+  local clash_yaml=$(cat <<YAML
+# Totoyo999-SingBox Clash 订阅配置
+# 生成时间: $(date '+%Y-%m-%d %H:%M:%S')
+# 节点数量: ${node_count}
+# 适用于 Clash Meta / mihomo
+
+proxies:
+${proxies}
+
+proxy-groups:
+  - name: "🚀 节点选择"
+    type: select
+    proxies:
+      - ♻️ 自动选择
+      - 🔮 负载均衡
+      - DIRECT
+YAML
+  )
+
+  # 把所有节点名追加到 select 组
+  local all_names
+  all_names=$(echo -e "$proxies" | grep 'name:' | sed 's/.*name: "\(.*\)"/      - \1/')
+  clash_yaml="${clash_yaml}"$'\n'"${all_names}"
+
+  clash_yaml="${clash_yaml}"$'\n'
+  clash_yaml="${clash_yaml}  - name: \"♻️ 自动选择\"
+    type: url-test
+    proxies:"
+  clash_yaml="${clash_yaml}"$'\n'"${all_names}"
+  clash_yaml="${clash_yaml}"$'\n'"    url: http://www.gstatic.com/generate_204
+    interval: 300"
+
+  clash_yaml="${clash_yaml}"$'\n\n'
+  clash_yaml="${clash_yaml}  - name: \"🔮 负载均衡\"
+    type: load-balance
+    proxies:"
+  clash_yaml="${clash_yaml}"$'\n'"${all_names}"
+  clash_yaml="${clash_yaml}"$'\n'"    url: http://www.gstatic.com/generate_204
+    interval: 300
+    strategy: round-robin"
+
+  clash_yaml="${clash_yaml}"$'\n\nrules:'
+  clash_yaml="${clash_yaml}"$'\n'"  - GEOIP,LAN,DIRECT"
+  clash_yaml="${clash_yaml}"$'\n'"  - GEOIP,CN,DIRECT"
+  clash_yaml="${clash_yaml}"$'\n'"  - MATCH,🚀 节点选择"
+
+  # 保存文件
+  mkdir -p "$sub_dir"
+  echo "$clash_yaml" > "${sub_dir}/clash.yaml"
+
+  echo -e "${C_GREEN}Clash 订阅已生成！${C_RESET}\n"
+  echo -e "${C_BOLD}Clash / mihomo 订阅地址:${C_RESET}"
+  echo -e "${C_YELLOW}  http://${ip}/sub/${SUB_TOKEN}/clash.yaml${C_RESET}\n"
+  echo -e "${C_BOLD}节点数量:${C_RESET} ${node_count}\n"
+  echo -e "${C_YELLOW}使用方法:${C_RESET}"
+  echo -e "  Clash Meta / mihomo → 配置 → Profile → 输入订阅地址 → 下载"
+  echo -e "  或在 proxy-providers 中引用该地址\n"
+
+  read -rp "回车返回..." _ || true
 }
 
 # ===== 设置节点图标 =====
@@ -1815,7 +2230,6 @@ menu(){
   ;;
   2) if ensure_installed_or_hint; then print_links_grouped 4; exit 0; fi ;;
 
-  6) if ensure_installed_or_hint; then print_links_grouped 6; exit 0; fi ;;
     3) if ensure_installed_or_hint; then restart_service; fi; read -rp "回车返回..." _ || true; menu ;;
    4) if ensure_installed_or_hint; then rotate_ports; fi; menu ;;
     5) enable_bbr; read -rp "回车返回..." _ || true; menu ;;
@@ -1827,6 +2241,7 @@ menu(){
     12) restore_config; menu ;;
     13) if ensure_installed_or_hint; then view_logs; fi; menu ;;
     14) set_node_icon; menu ;;
+    15) if ensure_installed_or_hint; then gen_clash_subscription; fi; menu ;;
     0) exit 0 ;;
     *) menu ;;
   esac

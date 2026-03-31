@@ -23,12 +23,12 @@
 | 🚀 一键部署 | 自动安装 sing-box、生成证书、配置 20 个节点、注册 systemd 服务 |
 | 🔄 10 种协议 | 涵盖当前主流代理协议，直连 + WARP 双通道 |
 | ⚡ 节点测速 | TCP Ping 测试各节点延迟，快速定位最佳节点 |
-| 📡 订阅生成 | 自动生成 Base64 订阅链接，兼容 v2rayN / Clash / NekoBox |
+| 📡 v2rayN 订阅 | 自动生成 Base64 订阅链接，随机 Token 保护，v2rayN / NekoBox 可用 |
+| ⚔️ Clash 订阅 | 自动生成 Clash YAML 订阅，含节点选择 / 自动选择 / 负载均衡策略组 |
 | 💾 配置备份 | 一键导出/恢复配置，迁移 VPS 零成本 |
 | 🎨 节点图标 | 56 个预设图标 + 自定义别名/emoji，多 VPS 方便区分 |
 | 📊 实时日志 | 查看运行日志，排查问题一目了然 |
 | 🔧 端口管理 | 一键更换所有端口、开关单个节点、防火墙自动放行 |
-| 🌐 IPv4 / IPv6 | 同时生成 IPv4 和 IPv6 分享链接 |
 | 🛡️ WARP 集成 | 自动安装 Cloudflare WARP，流量经过 WARP 出口 |
 
 ---
@@ -75,7 +75,7 @@
 | 权限 | root |
 | 内存 | ≥ 256 MB |
 | 磁盘 | ≥ 1 GB |
-| 网络 | 需要公网 IPv4 或 IPv6 |
+| 网络 | 需要公网 IPv4 |
 
 ---
 
@@ -110,19 +110,21 @@ chmod +x sing-box-totoyo-999.sh
 === Sing-Box-totoyo-999 管理脚本 v5.3.0 ===
 
   1)  安装/部署（20 节点）       一键安装 sing-box 并部署全部节点
-  2)  查看分享链接（IPv4）       显示所有直连节点的分享链接
+  2)  查看分享链接（IPv4）       显示所有节点的分享链接
   3)  重启服务                   重启 sing-box 服务
   4)  一键更换所有端口           重新生成随机端口并更新配置
   5)  一键开启 BBR               启用 TCP BBR 拥塞控制
-  6)  查看分享链接（IPv6）       显示 IPv6 地址的分享链接
   7)  节点开关管理               单独启用/禁用指定协议节点
   8)  卸载                       完全卸载 sing-box 及所有配置
+
   9)  节点测速                   TCP Ping 测试各节点延迟
-  10) 订阅链接生成              生成 Base64 订阅（v2rayN/Clash）
+  10) v2rayN 订阅链接生成        生成 Base64 订阅链接
   11) 配置备份                  导出配置到 tar.gz 压缩包
   12) 配置恢复                  从备份文件恢复配置
   13) 实时日志                  查看 sing-box 运行日志
-  14) 设置节点图标              选择节点前缀图标（56 预设 + 自定义 emoji/别名）
+  14) 设置节点图标              选择节点前缀图标（56 预设 + 自定义）
+  15) Clash 订阅链接生成        生成 Clash YAML 订阅
+
   0)  退出
 ```
 
@@ -130,26 +132,41 @@ chmod +x sing-box-totoyo-999.sh
 
 ## 📱 客户端推荐
 
+### v2rayN 客户端（Base64 订阅）
+
 | 平台 | 推荐客户端 | 支持协议 |
 |------|-----------|---------|
 | Windows | [v2rayN](https://github.com/2dust/v2rayN) | 全部 10 种 |
+| Android | [v2rayNG](https://github.com/2dust/v2rayNG) | 全部 10 种 |
+
+**导入方式：**
+1. 脚本菜单选择 `10) v2rayN 订阅链接生成` → 复制订阅地址
+2. v2rayN → 订阅 → 订阅设置 → 添加 → 粘贴地址 → 确定 → 更新订阅
+
+### Clash / mihomo 客户端（YAML 订阅）
+
+| 平台 | 推荐客户端 | 支持协议 |
+|------|-----------|---------|
+| Windows | [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev) | 全部 10 种 |
+| macOS | [mihomo Party](https://github.com/mihomo-party-org/mihomo-party) | 全部 10 种 |
+| Android | [FlClash](https://github.com/chen08209/FlClash) | 全部 10 种 |
+| iOS | [Stash](https://github.com/stashapp/stash) | 全部 10 种 |
+
+**导入方式：**
+1. 脚本菜单选择 `15) Clash 订阅链接生成` → 复制订阅地址
+2. 客户端 → 配置/Profile → 从 URL 导入 → 粘贴地址 → 下载
+3. 导入后可选三种策略组：🚀 节点选择 / ♻️ 自动选择 / 🔮 负载均衡
+
+### 通用客户端（单链接导入）
+
+| 平台 | 推荐客户端 | 支持协议 |
+|------|-----------|---------|
 | macOS | [sing-box GUI](https://sing-box.sagernet.org/guide/installation/) | 全部 10 种 |
-| Android | [sing-box (SFA)](https://sing-box.sagernet.org/guide/installation/) / [v2rayNG](https://github.com/2dust/v2rayNG) | 全部 10 种 |
 | iOS | [sing-box (SFV)](https://sing-box.sagernet.org/guide/installation/) / [Shadowrocket](https://apps.apple.com/app/shadowrocket/id932747118) | 全部 10 种 |
 | Linux | [sing-box CLI](https://sing-box.sagernet.org/guide/installation/) | 全部 10 种 |
 
-### 客户端导入方式
-
-**v2rayN（Windows）：**
-1. 菜单选择 `10) 订阅链接生成` → 复制订阅地址
-2. v2rayN → 订阅 → 订阅设置 → 添加 → 粘贴地址 → 确定 → 更新订阅
-
-**Clash / Clash Meta：**
-1. 菜单选择 `10) 订阅链接生成` → 复制订阅地址
-2. Clash 配置中添加 `proxy-providers`，类型为 `http`
-
-**Shadowrocket / Surge / Quantumult X：**
-1. 菜单选择 `2) 查看分享链接` → 复制对应协议链接
+**导入方式：**
+1. 脚本菜单选择 `2) 查看分享链接` → 复制对应协议链接
 2. 在客户端中粘贴导入
 
 ---
@@ -229,8 +246,8 @@ scp sing-box-backup-*.tar.gz root@新VPS:/root/
 | `/opt/sing-box/warp.env` | WARP WireGuard 参数 |
 | `/opt/sing-box/icon.env` | 自定义节点图标设置 |
 | `/var/lib/sing-box-plus/` | 脚本工作目录（依赖、证书等） |
+| `/var/lib/sing-box-plus/sub_token.env` | 订阅 Token（首次生成后固定不变） |
 | `/etc/systemd/system/sing-box.service` | systemd 服务文件 |
-| `/var/www/html/sub/singbox.txt` | 订阅链接文件（HTTP 订阅） |
 
 ---
 
@@ -249,7 +266,8 @@ Totoyo999-SingBox/
 2. **Reality 协议**需要一个可访问的 TLS 站点（脚本默认使用 `www.microsoft.com`）作为伪装目标
 3. **Hysteria2 / TUIC** 基于 UDP (QUIC)，请确保防火墙放行对应 UDP 端口
 4. **端口随机生成**，首次部署时自动分配，如需自定义可通过「一键更换所有端口」修改
-5. 建议部署后立即通过「配置备份」功能备份，方便后续迁移或恢复
+5. **订阅链接**使用随机 Token 保护，首次生成后固定不变，链接示例：`http://IP/sub/{token}/singbox.txt`
+6. 建议部署后立即通过「配置备份」功能备份，方便后续迁移或恢复
 
 ---
 
