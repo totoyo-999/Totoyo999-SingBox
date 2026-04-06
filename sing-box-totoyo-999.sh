@@ -1558,18 +1558,6 @@ JSON
   
   # 确保目录存在
   mkdir -p "$sub_dir"
-    # 修复 nginx 权限
-    chown -R www-data:www-data /var/www/html/sub
-    chmod -R 755 /var/www/html/sub
-    sed -i "/^user /d" /etc/nginx/nginx.conf
-    sed -i "1i user root;" /etc/nginx/nginx.conf
-    systemctl restart nginx
-    # 修复 nginx 权限
-    chown -R www-data:www-data /var/www/html/sub
-    chmod -R 755 /var/www/html/sub
-    sed -i "/^user /d" /etc/nginx/nginx.conf
-    sed -i "1i user root;" /etc/nginx/nginx.conf
-    systemctl restart nginx
   
   # 同时保存到 web 目录和本地
   echo "$sub_b64" > "$sub_web"
@@ -1934,18 +1922,6 @@ YAML
 
   # 保存文件
   mkdir -p "$sub_dir"
-    # 修复 nginx 权限
-    chown -R www-data:www-data /var/www/html/sub
-    chmod -R 755 /var/www/html/sub
-    sed -i "/^user /d" /etc/nginx/nginx.conf
-    sed -i "1i user root;" /etc/nginx/nginx.conf
-    systemctl restart nginx
-    # 修复 nginx 权限
-    chown -R www-data:www-data /var/www/html/sub
-    chmod -R 755 /var/www/html/sub
-    sed -i "/^user /d" /etc/nginx/nginx.conf
-    sed -i "1i user root;" /etc/nginx/nginx.conf
-    systemctl restart nginx
   echo "$clash_yaml" > "${sub_dir}/clash.yaml"
 
   echo -e "${C_GREEN}Clash 订阅已生成！${C_RESET}\n"
