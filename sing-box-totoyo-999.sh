@@ -2226,7 +2226,10 @@ menu(){
   systemctl restart "${SYSTEMD_SERVICE}" || true
   set -e                                            # ← 恢复严格模式
   print_links_grouped
-  exit 0                                          # ← 打印后直接退出
+    echo "按回车键返回主菜单..."
+    read
+    menu
+                                            # ← 打印后直接退出
   ;;
   2) if ensure_installed_or_hint; then print_links_grouped 4; exit 0; fi ;;
 
