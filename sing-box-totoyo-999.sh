@@ -370,16 +370,16 @@ safe_source_env(){ # 安全 source，忽略不存在文件
 
 get_ip4(){ # 多源获取公网 IPv4
   local ip
-  ip=$(curl -4 -fsSL ipv4.icanhazip.com 2>/dev/null || true)
-  [[ -z "$ip" ]] && ip=$(curl -4 -fsSL ifconfig.me 2>/dev/null || true)
-  [[ -z "$ip" ]] && ip=$(curl -4 -fsSL ip.sb 2>/dev/null || true)
+  ip=$(curl -4 -fsSL --connect-timeout 3 api.ipify.org 2>/dev/null || true)
+  [[ -z "$ip" ]] && ip=$(curl -4 -fsSL --connect-timeout 3 api.ipify.org 2>/dev/null || true)
+  [[ -z "$ip" ]] && ip=$(curl -4 -fsSL --connect-timeout 3 api.ipify.org 2>/dev/null || true)
   echo "${ip:-127.0.0.1}"
 }
 
 get_ip6(){ # 多源获取公网 IPv6（无 IPv6 则返回空）
   local ip
-  ip=$(curl -6 -fsSL ipv6.icanhazip.com 2>/dev/null || true)
-  [[ -z "$ip" ]] && ip=$(curl -6 -fsSL ifconfig.me 2>/dev/null || true)
+  ip=$(curl -6 -fsSL --connect-timeout 3 api6.ipify.org 2>/dev/null || true)
+  [[ -z "$ip" ]] && ip=$(curl -6 -fsSL --connect-timeout 3 api6.ipify.org 2>/dev/null || true)
   [[ -z "$ip" ]] && ip=$(curl -6 -fsSL ip.sb 2>/dev/null || true)
   echo "${ip:-}"
 }
